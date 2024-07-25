@@ -19,7 +19,7 @@ public class Debug {
 
 
     @TestAnnotations.Fast
-    public void xor() throws Exception {
+    public void relational_xor() throws Exception {
         String dataset = "neural/xor/relational_debug2";
         Settings settings = Settings.forSlowTest();
         settings.seed = 4;
@@ -30,9 +30,10 @@ public class Debug {
 //        settings.plotProgress = 1;
         settings.maxCumEpochCount = 100;
 //        settings.isoValueCompression = true;
-        settings.losslessIsoCompression = true;
+        settings.structuralIsoCompression = true;
         settings.initLearningRate = 0.01;
-        Main.main(getDatasetArgs(dataset,"-t ./template.txt"), settings);
+//        settings.debugAll = true;
+        Main.main(getDatasetArgs(dataset, "-t ./template.txt"), settings);
     }
 
     @TestAnnotations.Fast
@@ -75,8 +76,8 @@ public class Debug {
     }
 
     @TestAnnotations.Fast
-    public void negation() throws Exception {
-        String dataset = "debug/negation";
+    public void negationSoft() throws Exception {
+        String dataset = "debug/negation_soft";
         Settings settings = Settings.forSlowTest();
         settings.squishLastLayer = false;   //turn off both of these to avoid applying sigmoid on top
         settings.inferOutputFcns = false;
@@ -89,6 +90,20 @@ public class Debug {
         DetailedClassificationResults classificationResults = (DetailedClassificationResults) results.s;
         ScalarValue output = (ScalarValue) classificationResults.evaluations.get(0).getOutput();
         assertEquals(0.9, output.value, 0.00000001);
+    }
+
+    @TestAnnotations.Fast
+    public void negationHard() throws Exception {
+        String dataset = "debug/negation_hard";
+        Settings settings = Settings.forSlowTest();
+        settings.squishLastLayer = false;   //turn off both of these to avoid applying sigmoid on top
+        settings.inferOutputFcns = false;
+//        settings.isoValueCompression = false;
+//        settings.chainPruning = false;
+        settings.pruneOnlyIdentities = true;
+
+        settings.maxCumEpochCount = 1;
+        Pair<Pipeline, ?> results = Main.main(getDatasetArgs(dataset, "-t ./template.txt"), settings);
     }
 
     @TestAnnotations.Interactive
@@ -111,6 +126,17 @@ public class Debug {
         settings.chainPruning = false;
 
         Pair<Pipeline, ?> results = Main.main(getDatasetArgs(dataset, "-debug all"), settings);
+    }
+
+    @TestAnnotations.Interactive
+    public void duplicitRules() throws Exception {
+        String dataset = "debug/duplicitRules";
+        Settings settings = Settings.forInteractiveTest();
+
+        settings.isoValueCompression = false;
+        settings.chainPruning = false;
+
+        Pair<Pipeline, ?> results = Main.main(getDatasetArgs(dataset), settings);
     }
 
     @TestAnnotations.Interactive
@@ -151,4 +177,48 @@ public class Debug {
         System.out.println(results);
         assertNotNull(results);
     }
+
+    @TestAnnotations.Fast
+    public void cycleBreaking() throws Exception {
+        String dataset = "relational/molecules/mutagenesis";
+        Settings settings = Settings.forFastTest();
+        settings.squishLastLayer = false;
+        settings.inferOutputFcns = false;
+        settings.structuralIsoCompression = true;
+        Main.main(getDatasetArgs(dataset, "-t ./templates/template_cycle.txt"), settings);
+    }
+
+    @TestAnnotations.Fast
+    public void treeLeavesNegation() throws Exception {
+        String dataset = "debug/leaves";
+        Settings settings = Settings.forFastTest();
+        settings.squishLastLayer = false;
+        settings.inferOutputFcns = false;
+        settings.structuralIsoCompression = true;
+        Main.main(getDatasetArgs(dataset), settings);
+    }
+
+    @TestAnnotations.Interactive
+    public void treeLeavesNegationUnstratified() throws Exception {
+        String dataset = "debug/leaves";
+        Settings settings = Settings.forFastTest();
+        settings.squishLastLayer = false;
+        settings.inferOutputFcns = false;
+        settings.structuralIsoCompression = true;
+        settings.debugAll = true;
+        Main.main(getDatasetArgs(dataset, "-t ./template_unstratified.txt"), settings);
+    }
+
+
+    @TestAnnotations.Interactive
+    public void selfLoops() throws Exception {
+        String dataset = "debug/self_loops";
+        Settings settings = Settings.forFastTest();
+        settings.squishLastLayer = false;
+        settings.inferOutputFcns = false;
+        settings.isoValueCompression = false;
+        settings.debugAll = true;
+        Main.main(getDatasetArgs(dataset, "-t ./template.txt"), settings);
+    }
+
 }

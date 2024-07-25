@@ -87,12 +87,24 @@ public class NeuralNetsBuilder extends AbstractPipelineBuilder<Stream<GroundingS
 
         ConnectAfter<Stream<NeuralProcessingSample>> nextPipe = pipeline.registerStart(new IdentityGenPipe<>("NNBuildingInit"));
 
+        if (settings.aggregateConflictingQueries){
+            Pipe<Stream<NeuralProcessingSample>, Stream<NeuralProcessingSample>> pipe = pipeline.registerEnd(new SameQueryAggregationPipe(settings));
+            nextPipe.connectAfter(pipe);
+            nextPipe = pipe;
+        }
+
         if (settings.neuralNetsSupervisedPruning) {
             //todo
         }
 
         if (settings.copyOutInputOvermapping) {
             //todo - remove maps by recursive copying (here?)
+        }
+
+        if (settings.cycleBreaking) {
+            Pipe<Stream<NeuralProcessingSample>, Stream<NeuralProcessingSample>> pipe = pipeline.registerEnd(new CycleBreakingPipe(settings));
+            nextPipe.connectAfter(pipe);
+            nextPipe = pipe;
         }
 
         if (settings.chainPruning) {
@@ -113,12 +125,6 @@ public class NeuralNetsBuilder extends AbstractPipelineBuilder<Stream<GroundingS
             EdgeMergerPipe edgeMergerPipe = pipeline.registerEnd(new EdgeMergerPipe(settings));
             nextPipe.connectAfter(edgeMergerPipe);
             nextPipe = edgeMergerPipe;
-        }
-
-        if (settings.cycleBreaking) {
-            Pipe<Stream<NeuralProcessingSample>, Stream<NeuralProcessingSample>> pipe = pipeline.registerEnd(new CycleBreakingPipe(settings));
-            nextPipe.connectAfter(pipe);
-            nextPipe = pipe;
         }
 
         if (settings.collapseWeights) {

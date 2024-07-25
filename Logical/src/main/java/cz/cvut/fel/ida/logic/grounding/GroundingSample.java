@@ -3,6 +3,7 @@ package cz.cvut.fel.ida.logic.grounding;
 import cz.cvut.fel.ida.logic.constructs.example.LiftedExample;
 import cz.cvut.fel.ida.logic.constructs.example.LogicSample;
 import cz.cvut.fel.ida.logic.constructs.template.Template;
+import cz.cvut.fel.ida.logic.subsumption.SubsumptionEngineJ2;
 import cz.cvut.fel.ida.utils.exporting.Exportable;
 
 public class GroundingSample extends LogicSample {
@@ -35,7 +36,7 @@ public class GroundingSample extends LogicSample {
         /**
          * Duplicate reference (to GroundingSample.Query.Evidence) but with synchronized access
          */
-        private LiftedExample example;
+        public LiftedExample example;
         /**
          * Memory for Herbrand models
          */
@@ -43,7 +44,7 @@ public class GroundingSample extends LogicSample {
         /**
          * Memory for created neurons
          */
-        transient private  Object neuronMaps;
+        transient private Object neuronMaps;
 
         public synchronized LiftedExample getExample() {
             return example;
@@ -51,6 +52,7 @@ public class GroundingSample extends LogicSample {
 
         /**
          * Shared example in this wrap may be accessed by multiple Threads
+         *
          * @param example
          */
         public synchronized void setExample(LiftedExample example) {
@@ -71,6 +73,12 @@ public class GroundingSample extends LogicSample {
 
         public synchronized void setNeuronMaps(Object neuronMaps) {
             this.neuronMaps = neuronMaps;
+        }
+
+        public void copyFrom(Wrap other) {
+            this.example = other.example;
+            this.groundTemplate = other.groundTemplate;
+            this.neuronMaps = other.neuronMaps;
         }
     }
 

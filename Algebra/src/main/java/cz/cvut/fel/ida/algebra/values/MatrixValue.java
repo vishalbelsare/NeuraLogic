@@ -132,6 +132,91 @@ public class MatrixValue extends Value {
     }
 
     @Override
+    public Value slice(int[] rows, int[] cols) {
+        final int rowsTo = rows == null ? this.rows : rows[1];
+        final int rowsFrom = rows == null ? 0 : rows[0];
+
+        final int colsTo = cols == null ? this.cols : cols[1];
+        final int colsFrom = cols == null ? 0 : cols[0];
+
+        if (rowsFrom < 0 || rowsTo > this.rows || rowsFrom >= rowsTo) {
+            String err = "Cannot slice MatrixValue with size " + Arrays.toString(this.size()) + " with row slice " + Arrays.toString(rows);
+            LOG.severe(err);
+            throw new ArithmeticException(err);
+        }
+
+        if (colsFrom < 0 || colsTo > this.cols || colsFrom >= colsTo) {
+            String err = "Cannot slice MatrixValue with size " + Arrays.toString(this.size()) + " with col slice " + Arrays.toString(cols);
+            LOG.severe(err);
+            throw new ArithmeticException(err);
+        }
+
+        final int colNum = colsTo - colsFrom;
+        final int rowNum = rowsTo - rowsFrom;
+
+        final double[] resValues = new double[rowNum * colNum];
+
+        for (int i = rowsFrom; i < rowsTo; i++) {
+            System.arraycopy(values, i * this.cols + colsFrom, resValues, (i - rowsFrom) * colNum, colNum);
+        }
+
+        return new MatrixValue(resValues, rowNum, colNum);
+    }
+
+    @Override
+    public Value reshape(int[] shape) {
+        final double[] data = values;
+
+        if (values.length == 1 && shape.length == 1 && shape[0] == 0) {
+            return new ScalarValue(values[0]);
+        }
+
+        if (shape.length == 1 && shape[0] == data.length) {
+            return new VectorValue(data);
+        }
+
+        if (shape.length == 2) {
+            if (shape[0] == 1 && shape[1] == data.length) {
+                return new MatrixValue(data, 1, data.length);
+            }
+
+            if (shape[0] == data.length && shape[1] == 1) {
+                return new MatrixValue(data, data.length, 1);
+            }
+
+            if (shape[0] == 0 && shape[1] == 0 && data.length == 1) {
+                return new ScalarValue(data[0]);
+            }
+
+            if (shape[0] == 0 && shape[1] == data.length) {
+                return new VectorValue(data);
+            }
+
+            if (shape[0] == data.length && shape[1] == 0) {
+                return new VectorValue(data, true);
+            }
+
+            if (data.length / shape[1] == shape[0]) {
+                return new MatrixValue(data, shape[0], shape[1]);
+            }
+        }
+
+        String err = "Cannot reshape MatrixValue of shape " + Arrays.toString(this.size()) + " to shape " + Arrays.toString(shape);
+        LOG.severe(err);
+        throw new ArithmeticException(err);
+    }
+
+    @Override
+    public double[] getAsArray() {
+        return values;
+    }
+
+    @Override
+    public void setAsArray(double[] value) {
+        this.values = value;
+    }
+
+    @Override
     public Value apply(DoubleUnaryOperator function) {
         final MatrixValue result = new MatrixValue(rows, cols);
         final double[] tmpValues = result.values;
@@ -168,6 +253,9 @@ public class MatrixValue extends Value {
 
     @Override
     public String toString(NumberFormat numberFormat) {
+        if (numberFormat == null) {
+            return "dim:" + Arrays.toString(size());
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("[\n");
         for (int j = 0; j < rows; j++) {
@@ -175,9 +263,9 @@ public class MatrixValue extends Value {
             for (int i = 0; i < cols; i++) {
                 sb.append(numberFormat.format(values[j * cols + i])).append(",");
             }
-            sb.replace(sb.length()-1, sb.length(), "],\n");
+            sb.replace(sb.length() - 1, sb.length(), "],\n");
         }
-        sb.replace(sb.length()-2, sb.length(), "\n]");
+        sb.replace(sb.length() - 2, sb.length(), "\n]");
         return sb.toString();
     }
 
@@ -217,7 +305,7 @@ public class MatrixValue extends Value {
             throw new ArithmeticException("Column vector times matrix, try transposition. Vector size = " + value.values.length);
         }
 
-        final VectorValue result = new VectorValue(cols,true);
+        final VectorValue result = new VectorValue(cols, true);
         final double[] resultValues = result.values;
         final double[] origValues = value.values;
 
@@ -368,7 +456,7 @@ public class MatrixValue extends Value {
         if (value.rowOrientation) {
             throw new ArithmeticException("Row vector transposedTimes matrix, try transposition. Vector size = " + value.values.length);
         }
-        VectorValue result = new VectorValue(cols,true);
+        VectorValue result = new VectorValue(cols, true);
         double[] resultValues = result.values;
         double[] origValues = value.values;
 
@@ -675,9 +763,13 @@ public class MatrixValue extends Value {
      */
     @Override
     protected void incrementBy(ScalarValue value) {
-        String err = "Incompatible dimensions of algebraic operation - scalar incrementBy by matrix";
-        LOG.severe(err);
-        throw new ArithmeticException(err);
+        if (rows == 1 && cols == 1) {
+            value.value += values[0];
+        } else {
+            String err = "Incompatible dimensions of algebraic operation - scalar incrementBy by matrix";
+            LOG.severe(err);
+            throw new ArithmeticException(err);
+        }
     }
 
     /**
@@ -768,15 +860,11 @@ public class MatrixValue extends Value {
 
     @Override
     protected boolean greaterThan(ScalarValue maxValue) {
-        int greater = 0;
-
+        double sum = 0;
         for (int i = 0; i < values.length; i++) {
-            if (values[i] < maxValue.value) {
-                greater++;
-            }
+            sum += values[i];
         }
-
-        return greater > cols * rows / 2;
+        return maxValue.value > sum;
     }
 
     @Override
@@ -792,22 +880,29 @@ public class MatrixValue extends Value {
             LOG.severe(err);
             throw new ArithmeticException(err);
         }
-
-        int greater = 0;
-
+        double thisSum = 0;
+        double otherSum = 0;
         for (int i = 0; i < values.length; i++) {
-            if (values[i] < maxValue.values[i]) {
-                greater++;
-            }
+            thisSum += values[i];
+            otherSum += maxValue.values[i];
         }
-
-        return greater > cols * rows / 2;
+        return otherSum > thisSum;
     }
 
     @Override
     protected boolean greaterThan(TensorValue maxValue) {
         throw new ArithmeticException("Algebbraic operation between Tensor and Matrix are not implemented yet");
     }
+
+
+    @Override
+    public int hashCode() {
+        long hashCode = 1;
+        for (int i = 0; i < values.length; i++)
+            hashCode = 31 * hashCode + Double.valueOf(values[i]).hashCode();
+        return Long.hashCode(hashCode);
+    }
+
 
     @Override
     public boolean equals(Value obj) {

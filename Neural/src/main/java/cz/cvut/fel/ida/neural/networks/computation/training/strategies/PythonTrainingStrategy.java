@@ -9,6 +9,7 @@ import cz.cvut.fel.ida.neural.networks.computation.iteration.visitors.weights.We
 import cz.cvut.fel.ida.neural.networks.computation.training.NeuralModel;
 import cz.cvut.fel.ida.neural.networks.computation.training.NeuralSample;
 import cz.cvut.fel.ida.neural.networks.computation.training.optimizers.Optimizer;
+import cz.cvut.fel.ida.neural.networks.computation.training.strategies.Hyperparameters.LearnRateDecayStrategy;
 import cz.cvut.fel.ida.neural.networks.computation.training.strategies.debugging.NeuralDebugging;
 import cz.cvut.fel.ida.neural.networks.computation.training.strategies.trainers.*;
 import cz.cvut.fel.ida.setup.Settings;
@@ -30,19 +31,40 @@ public class PythonTrainingStrategy extends TrainingStrategy {
 
     transient ListTrainer listTrainer;
 
+    MiniBatchTrainer miniBatchTrainer;
+
+    ListTrainer minibatchListTrainer;
+
     ValueInitializer valueInitializer;
 
     PythonEvaluation evaluation;
 
-    public PythonTrainingStrategy(Settings settings, NeuralModel model) {
+    LearnRateDecayStrategy learnRateDecay;
+
+    int epochCount = 0;
+
+    public PythonTrainingStrategy(Settings settings, NeuralModel model, Optimizer optimizer, LearnRateDecayStrategy learnRateDecay) {
         super(settings, model);
 
-        this.trainer = new SequentialTrainer(settings, Optimizer.getFrom(settings, learningRate), currentModel);
+        this.trainer = new SequentialTrainer(settings, optimizer, currentModel);
         this.listTrainer = this.trainer.new SequentialListTrainer();
         this.valueInitializer = ValueInitializer.getInitializer(settings);
 
         evaluation = new PythonEvaluation(settings, -1);
         this.trainer.setEvaluation(evaluation);
+
+        this.miniBatchTrainer = new MiniBatchTrainer(settings, optimizer, currentModel, 0);
+        this.minibatchListTrainer = this.miniBatchTrainer.new MinibatchListTrainer();
+
+        this.learnRateDecay = learnRateDecay;
+    }
+
+    public SequentialTrainer getTrainer() {
+        return this.trainer;
+    }
+
+    public NeuralModel getCurrentModel() {
+        return this.currentModel;
     }
 
     public void setHooks(Set<String> hooks, PythonHookHandler callback) {
@@ -55,6 +77,11 @@ public class PythonTrainingStrategy extends TrainingStrategy {
     }
 
     public void resetParameters() {
+        if (learnRateDecay != null) {
+            learnRateDecay.restart();
+        }
+
+        epochCount = 0;
         listTrainer.restart(settings);
         currentModel.resetWeights(valueInitializer);
     }
@@ -67,28 +94,39 @@ public class PythonTrainingStrategy extends TrainingStrategy {
     @Override
     public void setupDebugger(NeuralDebugging neuralDebugger) { }
 
-    public String learnSamples(int epochs) {
-        return learnSamples(samplesSet, epochs);
+    public String learnSamples(int epochs, int minibatchSize) {
+        return learnSamples(samplesSet, epochs, minibatchSize);
     }
 
-    public String learnSamples(List<NeuralSample> samples, int epochs) {
+    public String learnSamples(List<NeuralSample> samples, int epochs, int minibatchSize) {
         List<Result> results = null;
 
         if (epochs <= 0) {
             return "[]";
         }
 
-        for (int i = 0; i < epochs; i++) {
-            results = listTrainer.learnEpoch(currentModel, samples);
+        ListTrainer trainer = listTrainer;
+
+        if (minibatchSize > 1) {
+            miniBatchTrainer.setMinibatchSize(minibatchSize);
+            trainer = minibatchListTrainer;
         }
 
-        List<String> output = new ArrayList<>();
+        for (int i = 0; i < epochs; i++) {
+            epochCount++;
+
+            if (learnRateDecay != null) {
+                learnRateDecay.decay(epochCount);
+            }
+
+            results = trainer.learnEpoch(currentModel, samples);
+        }
+
+        List<String> output = new ArrayList<>(samples.size());
         NumberFormat format = Settings.superDetailedNumberFormat;
 
-        for (int i = 0, j = results.size(); i < j; ++i) {
-            Result result = results.get(i);
-
-            output.add(Arrays.toString(new String[] {
+        for (Result result : results) {
+            output.add(Arrays.toString(new String[]{
                     result.getTarget().toString(format),
                     result.getOutput().toString(format),
                     result.errorValue().toString(format),
@@ -118,9 +156,19 @@ public class PythonTrainingStrategy extends TrainingStrategy {
         return evaluation.evaluate(sample.query).toString(Settings.superDetailedNumberFormat);
     }
 
-    public String evaluateSamples(List<NeuralSample> samples) {
-        List<String> output = new ArrayList<>();
+    public String evaluateSamples(List<NeuralSample> samples, int minibatchSize) {
+        List<String> output = new ArrayList<>(samples.size());
         NumberFormat format = Settings.superDetailedNumberFormat;
+
+        if (minibatchSize > 1) {
+            miniBatchTrainer.setMinibatchSize(minibatchSize);
+
+            for (Result result : minibatchListTrainer.evaluate(samples)) {
+                output.add(result.getOutput().toString(format));
+            }
+
+            return output.toString();
+        }
 
         for (NeuralSample sample : samples) {
             trainer.invalidateSample(trainer.getInvalidation(), sample);

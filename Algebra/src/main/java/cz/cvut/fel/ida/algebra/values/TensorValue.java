@@ -63,6 +63,24 @@ public class TensorValue extends Value {
     }
 
     @Override
+    public Value slice(int[] rows, int[] cols) {
+        return null;
+    }
+
+    @Override
+    public Value reshape(int[] shape) {
+        return null;
+    }
+
+    @Override
+    public double[] getAsArray() {
+        return new double[0];
+    }
+
+    @Override
+    public void setAsArray(double[] value) {}
+
+    @Override
     public TensorValue apply(DoubleUnaryOperator function) {
         throw new ArithmeticException("Higher dimension Tensor operations are not implemented yet");
     }
@@ -344,7 +362,15 @@ public class TensorValue extends Value {
     }
 
     @Override
+    public int hashCode() {
+        return tensor.hashCode();
+    }
+
+    @Override
     public boolean equals(Value obj) {
+        if (obj instanceof TensorValue) {
+            return this.tensor.equals(((TensorValue) obj).tensor);
+        }
         return false;
     }
 

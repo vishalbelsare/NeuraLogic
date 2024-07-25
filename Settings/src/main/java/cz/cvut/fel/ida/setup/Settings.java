@@ -90,8 +90,15 @@ public class Settings implements Serializable {
      */
     public static boolean customLogColors = true;
 
+    /**
+     * Path to output log file
+     */
     public static String logFile = "./out/Logging";
 
+    /**
+     * Seed for absolutely everything (turned into static to pass even into distant packages, unfortunately)
+     */
+    public static int seed = 0;
     //------------------Builders
 
     public static Settings forFastTest() {
@@ -102,8 +109,9 @@ public class Settings implements Serializable {
         setting.seed = 0;
         setting.maxCumEpochCount = 2;
         setting.mainMode = MainMode.COMPLETE;
-        setting.neuralNetsPostProcessing = false;
-        setting.chainPruning = true;
+//        setting.neuralNetsPostProcessing = false;
+//        setting.isoValueCompression = false;
+//        setting.chainPruning = false;
         setting.outDir = Settings.logFile;
         return setting;
     }
@@ -144,8 +152,7 @@ public class Settings implements Serializable {
 
     public String graphvizPath = null;
 
-    public String pythonPath = "/opt/miniconda3/envs/lrnn/bin/python";
-//    public String pythonPath = "python";
+    public String pythonPath = "python";
 
     public String progressPlotterPath = "../Frontend/grid/loading_results.py";
 
@@ -200,9 +207,12 @@ public class Settings implements Serializable {
      * Making this false will prevent from searching for graphviz executable
      */
     public boolean drawing = false;
+    /**
+     * Default debugging (=all) is on - fast switch to debug everything
+     */
+    public boolean debugAll = false;
 
     public boolean debugPipeline = false;
-
     public boolean debugTemplate = false;
     public boolean debugGrounding = false;
     public boolean debugNeuralization = false;
@@ -258,10 +268,7 @@ public class Settings implements Serializable {
     }
 
     //------------------Global structures
-    /**
-     * Seed for absolutely everything
-     */
-    public int seed = 0;
+
     /**
      * Global random generator
      */
@@ -358,6 +365,10 @@ public class Settings implements Serializable {
 
     //-----------------Neural nets creation
     /**
+     * When two queries reference the same output neuron in the same example but with possibly different target values
+     */
+    public boolean aggregateConflictingQueries = true;
+    /**
      * Prune out ground rules with no support for a given query EXPLICITLY in advance (even though in a supervised pipeline, only support will be taken recursively)
      */
     public boolean explicitSupervisedGroundTemplatePruning = false;
@@ -426,10 +437,10 @@ public class Settings implements Serializable {
      */
     public boolean isoValueCompression = true;
     /**
-     * If the isoValueCompression is performed, check whether the merged neurons are truly equivalent.
+     * If the isoValueCompression is performed, check whether the merged neurons are structurally (not just functionally) equivalent.
      * This is mostly for theoretical purposes and not typically needed in practice where we don't care about the true equivalence
      */
-    public boolean losslessIsoCompression = false;
+    public boolean structuralIsoCompression = false;
     /**
      * Top-down value (gradient) based sub-graph isomorphism collapsing (merging)
      */
@@ -567,15 +578,26 @@ public class Settings implements Serializable {
      * A single-pass weight training via streaming. This can save memory, but cannot re-iterate the data (i.e. learn in epochs)
      */
     public boolean neuralStreaming;
+
     /**
-     * Restarting the whole training?
+     * Restarting the whole training? Good e.g. in combination with earlyStopping
      */
-    public int restartCount = 1;
+    public int restartCount = 5;
+
+    /**
+     * Applies a DynamicRestartingStrategy with adaptive early stopping, or simple fixed maxCumEpochCount if off
+     */
+    public boolean earlyStopping = false;
 
     /**
      * Over all the restarts, how many epoch can be done at maximum.
      */
     public int maxCumEpochCount = 3000;
+
+    /**
+     * Number of epochae to take into account when calculating moving averages for loss decay detection
+     */
+    public int earlyStoppingPatience = 100;
 
     /**
      * Shuffle samples before neural training (only turn off for debugging purposes)
@@ -594,7 +616,7 @@ public class Settings implements Serializable {
     public boolean islearnRateDecay = false;    //todo next
 
     /**
-     * Apply the setup decay ever N steps
+     * Apply the learning rate decay ever N steps
      */
     public int decaySteps = 100;
 
@@ -773,12 +795,12 @@ public class Settings implements Serializable {
 
     public enum CombinationFcn {
         AVG, MAX, MIN, SUM, COUNT,  //AggregationFcn
-        PRODUCT, ELPRODUCT, CROSSSUM, CONCAT, SOFTMAX, SPARSEMAX, COSSIM    //CombinationFcn
+        PRODUCT, ELPRODUCT, SOFTMAX, SPARSEMAX, CROSSSUM, CONCAT, COSSIM    //CombinationFcn
     }
 
     public enum TransformationFcn {
         SIGMOID, TANH, SIGNUM, LUKASIEWICZ, RELU, LEAKYRELU, REVERSE, INVERSE, EXP, LOGARITHM, SQRT,     //ActivationFcn
-        IDENTITY, TRANSP, SOFTMAX, SPARSEMAX, MAX, MIN;    //TransformationFcn
+        IDENTITY, TRANSP, NORM, SOFTMAX, SPARSEMAX, MAX, MIN;    //TransformationFcn
     }
 
     public static CombinationFcn parseCombination(String combination) {
@@ -799,10 +821,14 @@ public class Settings implements Serializable {
                 return CombinationFcn.PRODUCT;
             case "elproduct":
                 return CombinationFcn.ELPRODUCT;
+            case "softmax":
+                return CombinationFcn.SOFTMAX;
+            case "sparsemax":
+                return CombinationFcn.SPARSEMAX;
             case "crosssum":
                 return CombinationFcn.CROSSSUM;
             case "concat":
-                return CombinationFcn.CONCAT;
+                return CombinationFcn.CONCAT;       // can also be aggregation now
             case "cossim":
                 return CombinationFcn.COSSIM;
             default:
@@ -846,6 +872,10 @@ public class Settings implements Serializable {
                 return TransformationFcn.SPARSEMAX;
             case "transpose":
                 return TransformationFcn.TRANSP;
+            case "norm":
+                return TransformationFcn.NORM;
+            case "layernorm":
+                return TransformationFcn.NORM;
             default:
                 throw new RuntimeException("Unable to parse transformation function from: " + transformation);
         }
@@ -872,16 +902,23 @@ public class Settings implements Serializable {
      */
     public boolean undoWeightTrainingChanges = false;
 
-    /**
-     * When measuring both training and validation error, choose the model with the best TRAINING error (off = default = choose the best VALIDATION error)
-     */
-    public boolean preferBestTrainingNotvalidation = false;
-
     public enum ModelSelection {
         ERROR, ACCURACY, DISPERSION, AUCroc, AUCpr
     }
 
+    /**
+     * Select the best model (from training) based on which metric?
+     */
     public ModelSelection modelSelection = ModelSelection.ERROR;
+
+    public enum DataSelection {
+        ONLINETRAIN, TRUETRAIN, VALIDATION
+    }
+
+    /**
+     * Evaluate the best model (e.g. for early stopping) preferably based on what evaluations?
+     */
+    public DataSelection dataSelection = DataSelection.VALIDATION;
 
     public boolean exportTrainedModel = true;
 
@@ -973,6 +1010,10 @@ public class Settings implements Serializable {
     //----------------Template Transformations
 
     /**
+     * Check if the template is stratified w.r.t. negation (no cycles with a negated edge)
+     */
+    public boolean checkStratification = true;
+    /**
      * Apply all metadata taken from sources
      */
     public boolean processMetadata = true;
@@ -983,11 +1024,12 @@ public class Settings implements Serializable {
     /**
      * Reduce template graph size (e.g. linear chains)
      */
-    public boolean reduceTemplate = true;
+    public boolean reduceTemplate = false;
     /**
      * If the template contains facts, infer all other possible true facts as a preprocessing step (to save some time inferring the same things over and over later)
+     * AND also preprocess rules into more efficient (ClauseC) indexed structures and store for later
      */
-    public boolean inferTemplateFacts = true;
+    public boolean preprocessTemplateInference = true;
     /**
      * In advance of grounding (theorem proving), remove rules that are irrelevant to the given query (with no chance to be in support)
      */
@@ -1066,7 +1108,7 @@ public class Settings implements Serializable {
 
         if (cmd.hasOption("seed")) {
             String _seed = cmd.getOptionValue("seed", String.valueOf(seed));
-            settings.random = new Random(Integer.parseInt(_seed));
+            settings.seed = Integer.parseInt(_seed);
         }
 
         if (cmd.hasOption("groundingAlgorithm")) {
@@ -1258,14 +1300,15 @@ public class Settings implements Serializable {
             }
         }
 
-        if (cmd.hasOption("debug")) {
-            String _debug = cmd.getOptionValue("debug");
+        if (cmd.hasOption("debug") || settings.debugAll) {
+            String _debug = cmd.getOptionValue("debug", "all");
             settings.drawing = true;
             settings.mainMode = MainMode.DEBUGGING;
             switch (_debug) {
                 case "all":
                     settings.maxCumEpochCount = 2;
                     settings.resultsRecalculationEpochae = 2;
+                    settings.debugAll = true;
                     settings.intermediateDebug = true;
                     settings.debugPipeline = true;
                     settings.debugTemplate = true;
@@ -1315,7 +1358,7 @@ public class Settings implements Serializable {
 
         if (cmd.hasOption("losslessCompression")) {
             String _losslessCompression = cmd.getOptionValue("losslessCompression");
-            settings.losslessIsoCompression = Integer.parseInt(_losslessCompression) > 0;
+            settings.structuralIsoCompression = Integer.parseInt(_losslessCompression) > 0;
         }
 
         if (cmd.hasOption("chainPruning")) {
@@ -1327,11 +1370,6 @@ public class Settings implements Serializable {
             } else {
                 settings.chainPruning = false;
             }
-        }
-
-        if (cmd.hasOption("preferTraining")) {
-            String _sel = cmd.getOptionValue("preferTraining");
-            settings.preferBestTrainingNotvalidation = Double.parseDouble(_sel) > 0;
         }
 
         //todo fill all the most useful settings
@@ -1366,6 +1404,11 @@ public class Settings implements Serializable {
             valid = false;
         }
 
+        if (isoValueCompression && (aggNeuronAggregation == CombinationFcn.MAX || atomNeuronCombination == CombinationFcn.MAX || ruleNeuronCombination == CombinationFcn.MAX)) {
+            message.append("lossless network compression does not work well with MAX aggregation function.\n Either turn off the isovaluecompression or change activation function(s).");
+            valid = false;
+        }
+
         //todo more validation and inference of settings
 
         return valid;
@@ -1391,6 +1434,7 @@ public class Settings implements Serializable {
         if (groundingMode == GroundingMode.SEQUENTIAL) {
             forceFullNetworks = true;   //if we sequentially add new facts/rules, and then after grounding we take just the diff, the rules might not be connected, i.e. we need to turn them all blindly to neurons.
             possibleNeuronSharing = true;
+            neuralNetsSupervisedPruning = false;
         }
         if (groundingMode == GroundingMode.GLOBAL) {
             possibleNeuronSharing = true;
@@ -1418,6 +1462,10 @@ public class Settings implements Serializable {
 
         if (validationResultsType == ResultsType.DETAILEDCLASSIFICATION || validationResultsType == ResultsType.KBC) {
             calculateBestThreshold = true;  //it does not cost more then
+        }
+
+        if (debugAll || debugNeuralization || debugTemplateTraining || debugSampleTraining) {
+            inferOutputFcns = false;
         }
 
         if (inferOutputFcns) {

@@ -45,7 +45,9 @@ public class NeuralNetDrawer extends Drawer<NeuralSample> {
 
         this.graphviz.start_graph();
         iterateNetwork();
-        this.graphviz.addln(sample.query.neuron.getIndex() + " [shape = tripleoctagon]");
+        if (sample.query.neuron != null) {
+            this.graphviz.addln(sample.query.neuron.getIndex() + "[shape = tripleoctagon, xlabel=\"\n\n\ntarget = " + sample.target + "  \"]");
+        }
         this.graphviz.end_graph();
     }
 
@@ -67,8 +69,8 @@ public class NeuralNetDrawer extends Drawer<NeuralSample> {
         }
 
         private String getNeuronLabel(BaseNeuron neuron) {
-
-            String name = neuron.getClass().getSimpleName() + ":" + neuron.index + ":" + neuron.name;
+            String typeName = numberFormat != null ? neuron.getClass().getSimpleName() : "n";
+            String name = typeName + ":" + neuron.index + ":" + neuron.name;
             State.Neural.Computation state = neuron.getComputationView(stateVisitor.stateIndex);
             String value = state.getValue().toString(NeuralNetDrawer.this.numberFormat);
             Value stateGradient = state.getGradient();
@@ -81,8 +83,7 @@ public class NeuralNetDrawer extends Drawer<NeuralSample> {
             if (neuron instanceof FactNeuron) {
                 neuronCombination = null;
                 neuronTransformation = null;
-            }
-            else {
+            } else {
                 neuronCombination = neuron.getCombination();
                 neuronTransformation = neuron.getTransformation();
             }
@@ -107,9 +108,9 @@ public class NeuralNetDrawer extends Drawer<NeuralSample> {
             StringBuilder sb = new StringBuilder();
             sb.append(" [label=");
             sb.append("\"");
-            sb.append(weight.index).append(":");
+//            sb.append(weight.index).append(":");
             sb.append(weight.name).append(":");
-            sb.append(Arrays.toString(weight.value.size())).append(":");
+//            sb.append(Arrays.toString(weight.value.size())).append(":");
             sb.append(weight.value.toString(NeuralNetDrawer.this.numberFormat));
             sb.append("\"");
             if (weight.isFixed)
@@ -124,7 +125,7 @@ public class NeuralNetDrawer extends Drawer<NeuralSample> {
             StringBuilder sb = new StringBuilder();
             while (inputs.hasNext()) {
                 input = inputs.next();
-                sb.append(neuron.index + " -> " + input.getIndex() + " [style=dashed] ").append("\n");
+                sb.append(input.getIndex() + " -> " + neuron.index + " [style=dashed] ").append("\n");
             }
             return sb.toString();
         }
@@ -139,7 +140,7 @@ public class NeuralNetDrawer extends Drawer<NeuralSample> {
             while (inputNeurons.hasNext()) {
                 input = inputNeurons.next();
                 weight = inputWeights.next();
-                sb.append(neuron.index + " -> " + input.getIndex() + getEdgeLabel(neuron.index, input.getIndex(), weight)).append("\n");
+                sb.append(input.getIndex() + " -> " + neuron.index + getEdgeLabel(neuron.index, input.getIndex(), weight)).append("\n");
             }
             return sb.toString();
         }
@@ -157,6 +158,12 @@ public class NeuralNetDrawer extends Drawer<NeuralSample> {
         @Override
         public void visit(AtomNeuron neuron) {
             gv.addln(neuron.index + " [shape=ellipse, color=blue, label=" + getNeuronLabel(neuron) + "]");
+            gv.addln(getEdges(neuron));
+        }
+
+        @Override
+        public void visit(NegationNeuron neuron) {
+            gv.addln(neuron.index + " [shape=ellipse, color=red, label=" + getNeuronLabel(neuron) + "]");
             gv.addln(getEdges(neuron));
         }
 

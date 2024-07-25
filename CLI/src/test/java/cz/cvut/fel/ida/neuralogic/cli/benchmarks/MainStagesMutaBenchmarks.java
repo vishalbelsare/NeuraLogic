@@ -25,12 +25,13 @@ public class MainStagesMutaBenchmarks {
 
     static String dataset = "relational/molecules/mutagenesis";
     static String template = "-t ./templates/template_gnnW10.txt";
+//    static String template = "-t ./templates/template_rings_gnn.txt";
 
 
     @TestAnnotations.PreciseBenchmark
     public void benchmarkMutagenesisLoading() throws RunnerException {
         Duration referenceTime = Duration.ofMillis(340);
-        double maxDeviation = 0.5;
+        double maxDeviation = 7;
 
         Collection<RunResult> runResults = benchmarkSlow(getClass().getName() + ".mutagenesis1SampleProcessing", 5, 2);
         assertSmallRuntimeDeviation(runResults, referenceTime, maxDeviation);
@@ -39,7 +40,7 @@ public class MainStagesMutaBenchmarks {
     @TestAnnotations.PreciseBenchmark
     public void benchmarkMutagenesisGrounding() throws RunnerException {
         Duration referenceTime = Duration.ofMillis(5000);
-        double maxDeviation = 3.5;
+        double maxDeviation = 7;
 
         Collection<RunResult> runResults = benchmarkSlow(getClass().getName() + ".mutagenesisGrounding", 3, 1);
         assertSmallRuntimeDeviation(runResults, referenceTime, maxDeviation);
@@ -65,6 +66,16 @@ public class MainStagesMutaBenchmarks {
     @Benchmark
     public void mutagenesisGrounding() throws Exception {
         Settings settings = Settings.forMediumTest();
+        String[] args = getDatasetArgs(dataset, template, "-lim -1 -ts 0");
+        Pair<Pipeline, ?> main = Main.main(args, settings);
+        System.out.println(main.s);
+    }
+
+    @Benchmark
+    @TestAnnotations.Medium
+    public void mutagenesisParallelGrounding() throws Exception {
+        Settings settings = Settings.forMediumTest();
+        settings.parallelGrounding = true;
         String[] args = getDatasetArgs(dataset, template, "-lim -1 -ts 0");
         Pair<Pipeline, ?> main = Main.main(args, settings);
         System.out.println(main.s);

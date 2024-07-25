@@ -56,6 +56,26 @@ public class One extends Value {
     }
 
     @Override
+    public Value slice(int[] rows, int[] cols) {
+        return this.one.slice(rows, cols);
+    }
+
+    @Override
+    public Value reshape(int[] shape) {
+        return this.one.reshape(shape).clone();
+    }
+
+    @Override
+    public double[] getAsArray() {
+        return new double[]{one.value};
+    }
+
+    @Override
+    public void setAsArray(double[] value) {
+        LOG.warning("Trying to set value of constant ONE");
+    }
+
+    @Override
     public Value apply(DoubleUnaryOperator function) {
         throw new ArithmeticException("Trying to modify value of constant ONE");
     }
@@ -339,6 +359,11 @@ public class One extends Value {
     @Override
     protected boolean greaterThan(TensorValue maxValue) {
         return one.greaterThan(maxValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return this.getClass().hashCode();
     }
 
     @Override

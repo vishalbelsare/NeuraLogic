@@ -46,12 +46,16 @@ public class LinearChainReducer implements NetworkReducing {
             if (settings.pruneOnlyIdentities && !(neuron instanceof AggregationNeuron) && !(neuron.getTransformation() instanceof Identity)) {
                 continue;
             }
+            if (neuron.getTransformation() != null && neuron.getTransformation().changesShape()) {
+                continue;
+            }
+
             boolean pruned = prune(inet, neuron);
             if (pruned) {
                 prunings++;
             }
         }
-        List<BaseNeuron<Neurons, State.Neural>> collect = outputs.stream().map(s -> (BaseNeuron<Neurons, State.Neural>) s.neuron).collect(Collectors.toList());
+        List<Neurons> collect = outputs.stream().map(s -> s.neuron).collect(Collectors.toList());
         NetworkReducing.supervisedNetReconstruction(inet, collect);    //lastly remove all the dead (pruned) neurons by building a new topologic sort starting from output neuron
         int sizeAfter = inet.allNeuronsTopologic.size();
 //        LOG.info(inet.toString());
@@ -82,13 +86,24 @@ public class LinearChainReducer implements NetworkReducing {
             BaseNeuron<Neurons, State.Neural> child = (BaseNeuron<Neurons, State.Neural>) middleInputNeurons.get(0);
             Iterator<Neurons> parents = inet.getOutputs(middle);
             if (parents == null) {
-                LOG.info("Neuron has only 1 input but has no output, thus not pruning it (i.e., an output neuron).");
+                LOG.fine("Neuron has only 1 input but has no output, thus not pruning it (i.e., an output neuron).");
                 return false;
             }
-            parents.forEachRemaining(parent -> {
+
+            List<Neurons> middleOutputNeurons = new ArrayList<>();
+            parents.forEachRemaining(middleOutputNeurons::add);
+
+            for (Neurons parent : middleOutputNeurons) {
+
                 inet.replaceInput((BaseNeuron<Neurons, State.Neural>) parent, middle, child);
-                inet.replaceOutput(child, middle, parent);
-            });
+
+                if (middleOutputNeurons.size() > 1) {   // if there are more outputs of the middle neuron, we cannot simply remove middle, but must add the current child -> parent
+                    inet.outputMapping.get(middle).removeLink(parent);
+                    inet.outputMapping.get(child).addLink(parent);
+                } else {    // if middle has but a single output, we can safely skip it completely and replace also child -> parent
+                    inet.replaceOutput(child, middle, parent);
+                }
+            }
 //            System.out.println("pruning: " + middle);
             return true;
         }

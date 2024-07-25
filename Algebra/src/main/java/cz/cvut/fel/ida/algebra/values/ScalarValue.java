@@ -1,9 +1,11 @@
 package cz.cvut.fel.ida.algebra.values;
 
 import cz.cvut.fel.ida.algebra.values.inits.ValueInitializer;
+import cz.cvut.fel.ida.setup.Settings;
 import org.jetbrains.annotations.NotNull;
 
 import java.text.NumberFormat;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.function.DoubleUnaryOperator;
 import java.util.logging.Logger;
@@ -89,6 +91,64 @@ public class ScalarValue extends Value {
     }
 
     @Override
+    public Value slice(int[] rows, int[] cols) {
+        if (cols != null && (cols[0] != 0 || cols[1] != 1)) {
+            String err = "Cannot slice ScalarValue " + this + " with col slice " + Arrays.toString(cols);
+            LOG.severe(err);
+            throw new ArithmeticException(err);
+        }
+
+        if (rows != null && (rows[0] != 0 || rows[1] != 1)) {
+            String err = "Cannot slice ScalarValue " + this + " with row slice " + Arrays.toString(cols);
+            LOG.severe(err);
+            throw new ArithmeticException(err);
+        }
+
+        return new ScalarValue(value);
+    }
+
+    @Override
+    public Value reshape(int[] shape) {
+        if (shape.length == 1 && shape[0] == 0) {
+            return this;
+        }
+
+        double[] data = new double[] { value };
+
+        if (shape.length == 2) {
+            if (shape[0] == 0 && shape[1] == 0) {
+                return this;
+            }
+
+            if (shape[0] == 0 && shape[1] == 1) {
+                return new VectorValue(data, false);
+            }
+
+            if (shape[0] == 1 && shape[1] == 0) {
+                return new VectorValue(data);
+            }
+
+            if (shape[0] == 1 && shape[1] == 1) {
+                return new MatrixValue(data, 1, 1);
+            }
+        }
+
+        String err = "Cannot reshape ScalarValue " + this + " to shape " + Arrays.toString(shape);
+        LOG.severe(err);
+        throw new ArithmeticException(err);
+    }
+
+    @Override
+    public double[] getAsArray() {
+        return new double[]{value};
+    }
+
+    @Override
+    public void setAsArray(double[] value) {
+        this.value = value[0];
+    }
+
+    @Override
     public Value apply(DoubleUnaryOperator function) {
         return new ScalarValue(function.applyAsDouble(value));
     }
@@ -124,6 +184,9 @@ public class ScalarValue extends Value {
 
     @Override
     public String toString(NumberFormat numberFormat) {
+        if (numberFormat == null) {
+            return Settings.shortNumberFormat.format(value);
+        }
         return numberFormat.format(value);
     }
 
@@ -555,13 +618,11 @@ public class ScalarValue extends Value {
      */
     @Override
     protected boolean greaterThan(VectorValue maxValue) {
-        int greater = 0;
+        double otherSum = 0;
         for (int i = 0; i < maxValue.values.length; i++) {
-            if (maxValue.values[i] > this.value) {
-                greater++;
-            }
+            otherSum += maxValue.values[i];
         }
-        return greater > maxValue.values.length / 2;
+        return otherSum > this.value;
     }
 
     /**
@@ -572,27 +633,20 @@ public class ScalarValue extends Value {
      */
     @Override
     protected boolean greaterThan(MatrixValue maxValue) {
-        int greater = 0;
-        final double[] values = maxValue.values;
-
-        for (int i = 0; i < values.length; i++) {
-            if (values[i] > this.value) {
-                greater++;
-            }
+        double otherSum = 0;
+        for (int i = 0; i < maxValue.values.length; i++) {
+            otherSum += maxValue.values[i];
         }
-
-        return greater > maxValue.cols * maxValue.rows / 2;
+        return otherSum > this.value;
     }
 
     @Override
     protected boolean greaterThan(TensorValue maxValue) {
-        int greater = 0;
+        double otherSum = 0;
         for (int i = 0; i < maxValue.tensor.values.length; i++) {
-            if (maxValue.tensor.values[i] > this.value) {
-                greater++;
-            }
+            otherSum += maxValue.tensor.values[i];
         }
-        return greater > maxValue.tensor.values.length / 2;
+        return otherSum > this.value;
     }
 
     @Override

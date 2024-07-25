@@ -59,6 +59,24 @@ public class StringValue extends Value {
     }
 
     @Override
+    public Value slice(int[] rows, int[] cols) {
+        return null;
+    }
+
+    @Override
+    public Value reshape(int[] shape) {
+        return null;
+    }
+
+    @Override
+    public double[] getAsArray() {
+        return new double[0];
+    }
+
+    @Override
+    public void setAsArray(double[] value) {}
+
+    @Override
     public Value apply(DoubleUnaryOperator function) {
         return null;
     }
@@ -332,6 +350,11 @@ public class StringValue extends Value {
     @Override
     protected boolean greaterThan(TensorValue maxValue) {
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return value.hashCode();
     }
 
     @Override

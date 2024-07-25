@@ -3,10 +3,12 @@ package cz.cvut.fel.ida.neural.networks.structure.building;
 import cz.cvut.fel.ida.algebra.functions.Aggregation;
 import cz.cvut.fel.ida.algebra.functions.Combination;
 import cz.cvut.fel.ida.algebra.functions.Transformation;
+import cz.cvut.fel.ida.algebra.functions.transformation.joint.AtIndex;
 import cz.cvut.fel.ida.algebra.values.ScalarValue;
 import cz.cvut.fel.ida.algebra.values.Value;
 import cz.cvut.fel.ida.algebra.weights.Weight;
 import cz.cvut.fel.ida.logic.Literal;
+import cz.cvut.fel.ida.logic.Predicate;
 import cz.cvut.fel.ida.logic.constructs.building.factories.WeightFactory;
 import cz.cvut.fel.ida.logic.constructs.example.ValuedFact;
 import cz.cvut.fel.ida.logic.constructs.template.components.GroundHeadRule;
@@ -96,6 +98,33 @@ public class NeuronFactory {
         return aggregationNeuron;
     }
 
+    public SplittableAggregationNeuron createSplittableAggNeuron(GroundHeadRule groundHeadRule) {
+        WeightedRule weightedRule = groundHeadRule.weightedRule;
+        Aggregation aggregation = weightedRule.getAggregationFcn() != null ? weightedRule.getAggregationFcn() : Aggregation.getFunction(settings.aggNeuronAggregation);
+
+        State.Neural.Computation state = State.createBaseState(settings, aggregation, null);
+        SplittableAggregationNeuron<State.Neural.Computation> aggregationNeuron = new SplittableAggregationNeuron<>(settings.fullAggNeuronStrings ? groundHeadRule.toFullString() : weightedRule.getOriginalString(), counter++, state);
+        neuronMaps.aggNeurons.put(groundHeadRule, aggregationNeuron);
+        LOG.finest(() -> "Created splittable aggregation neuron: " + aggregationNeuron);
+        return aggregationNeuron;
+    }
+
+    public AtomNeuron createSplittableAtomNeuron(Literal groundHead, SplittableAggregationNeuron splittableAggregationNeuron) {
+        Combination combination = Combination.getFunction(settings.atomNeuronCombination);
+        Transformation transformation = new AtIndex();
+
+        State.Neural.Computation state = State.createBaseState(settings, combination, transformation);
+        Literal head = new Literal(new Predicate("_" + groundHead.predicate().name, groundHead.predicate().arity), groundHead.isNegated(), groundHead.termList());
+
+        AtomNeuron<State.Neural.Computation> atomNeuron = new AtomNeuron<>(head.toString(), counter++, state);
+        neuronMaps.atomNeurons.put(head, atomNeuron);
+        atomNeuron.addInput(splittableAggregationNeuron);
+
+        LOG.finest(() -> "Created splittable atom neuron: " + atomNeuron);
+        return atomNeuron;
+    }
+
+
     public RuleNeuron createRuleNeuron(GroundRule groundRule) {
         WeightedRule weightedRule = groundRule.weightedRule;
         Combination combination = weightedRule.getCombination() != null ? weightedRule.getCombination() : Combination.getFunction(settings.ruleNeuronCombination);
@@ -138,7 +167,7 @@ public class NeuronFactory {
         FactNeuron result = neuronMaps.factNeurons.get(fact.literal);
         if (result == null) {    //fact neuron might have been created already and for them it is ok
             States.SimpleValue simpleValue = new States.SimpleValue(fact.getValue() == null ? this.defaultFactValue : fact.getValue());     //todo this is incompatible with ParentCounter state for Fact neurons...
-            FactNeuron factNeuron = new FactNeuron(fact.toString(), fact.weight, counter++, simpleValue);
+            FactNeuron factNeuron = new FactNeuron(fact.originalString, fact.weight, counter++, simpleValue);
             if (fact.weight != null && fact.weight.isLearnable()) {
                 factNeuron.hasLearnableValue = true;
                 simpleValue.isLearnable = true;

@@ -13,10 +13,7 @@ import cz.cvut.fel.ida.utils.generic.Pair;
 import cz.cvut.fel.ida.utils.generic.Utilities;
 import org.antlr.v4.runtime.ParserRuleContext;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.logging.Logger;
@@ -28,6 +25,8 @@ import java.util.stream.Stream;
  */
 public abstract class SamplesBuilder<I extends PlainParseTree<? extends ParserRuleContext>, O> extends LogicSourceBuilder<I, Stream<O>> {
     private static final Logger LOG = Logger.getLogger(SamplesBuilder.class.getName());
+
+    public static int counter = 0;
 
     final String prefix;
     int queryCounter = 0;
@@ -75,7 +74,7 @@ public abstract class SamplesBuilder<I extends PlainParseTree<? extends ParserRu
                 queries.close();
                 return getSortedLogicSampleStream(sampleMap);
             }
-            map = new HashMap<>();
+            map = new TreeMap<>();
         }
         //the remaining 1 example to Many queries solution
         examples.forEach(
@@ -100,12 +99,15 @@ public abstract class SamplesBuilder<I extends PlainParseTree<? extends ParserRu
                 Pair<LiftedExample, List<LogicSample>> pair = map.get(ls.getId());
                 ls.query.evidence = pair.r;
                 List<LogicSample> qs = pair.s;
+                qs.add(ls);
                 LOG.fine("Extracted Sample: " + ls);
             });
         }
 
         examples.close();
         queries.close();
+
+        counter = map.size(); // just store/expose it for outside access (e.g. FileDataset progress-bar reading)
 
 //        settings.inferred.maxWeightCount = weightFactory.getIndex();
 

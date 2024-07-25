@@ -12,7 +12,6 @@ public class SequentiallySharedGroundingPipe extends Pipe<Stream<GroundingSample
     private static final Logger LOG = Logger.getLogger(SequentiallySharedGroundingPipe.class.getName());
 
     Grounder grounder;
-
     GroundTemplate stored = null;
 
     public SequentiallySharedGroundingPipe(Grounder grounder) {

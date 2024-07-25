@@ -54,6 +54,26 @@ class Zero extends Value {
     }
 
     @Override
+    public Value slice(int[] rows, int[] cols) {
+        return this.zero.slice(rows, cols);
+    }
+
+    @Override
+    public Value reshape(int[] shape) {
+        return this.zero.reshape(shape).clone();
+    }
+
+    @Override
+    public double[] getAsArray() {
+        return new double[]{zero.value};
+    }
+
+    @Override
+    public void setAsArray(double[] value) {
+        LOG.warning("Trying to set value of constant ZERO");
+    }
+
+    @Override
     public Value apply(DoubleUnaryOperator function) {
         throw new ArithmeticException("Trying to modify value of constant ZERO");
     }
@@ -340,6 +360,11 @@ class Zero extends Value {
     @Override
     protected boolean greaterThan(TensorValue maxValue) {
         return zero.greaterThan(maxValue);
+    }
+
+    @Override
+    public int hashCode() {
+        return this.getClass().hashCode();
     }
 
     @Override

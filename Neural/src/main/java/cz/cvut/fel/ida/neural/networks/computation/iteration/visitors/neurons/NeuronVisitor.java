@@ -1,6 +1,5 @@
 package cz.cvut.fel.ida.neural.networks.computation.iteration.visitors.neurons;
 
-import org.jetbrains.annotations.Nullable;
 import cz.cvut.fel.ida.neural.networks.computation.iteration.IterationStrategy;
 import cz.cvut.fel.ida.neural.networks.computation.iteration.visitors.states.StateVisiting;
 import cz.cvut.fel.ida.neural.networks.computation.iteration.visitors.weights.WeightUpdater;
@@ -10,6 +9,7 @@ import cz.cvut.fel.ida.neural.networks.structure.components.neurons.Neurons;
 import cz.cvut.fel.ida.neural.networks.structure.components.neurons.WeightedNeuron;
 import cz.cvut.fel.ida.neural.networks.structure.components.neurons.states.State;
 import cz.cvut.fel.ida.neural.networks.structure.components.neurons.types.*;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Abstract representation for all the actions performed on the level of Neurons while iterating ({@link IterationStrategy}.
@@ -83,6 +83,8 @@ public abstract class NeuronVisitor {
             public abstract <S extends State.Neural> void visit(RuleNeuron<S> neuron);
 
             public abstract <S extends State.Neural> void visit(WeightedRuleNeuron<S> neuron);
+
+            public abstract <S extends State.Neural> void visit(NegationNeuron<S> neuron);
 
             public abstract <S extends State.Neural> void visit(WeightedAtomNeuron<S> neuron);
 

@@ -356,8 +356,8 @@ public class Literal implements Serializable {
             }
             hash = (int) (varcode * (long) hash);
         }
-        hash *= (this.negated ? -1 : 1);
-        return (hashCode = hash);
+//        hash *= (this.negated ? -1 : 1);  we want to connect positive and negated literals just the same
+        return hash;
     }
 
     /**
@@ -488,4 +488,19 @@ public class Literal implements Serializable {
         return this.negated;
     }
 
+    /**
+     * Creates a new instance of the literal with masked terms
+     *
+     * @param maskedTerms
+     * @return
+     */
+    public Literal maskTerms(int[] maskedTerms) {
+        List<Term> terms = new ArrayList<>(this.termList());
+
+        for (int index : maskedTerms) {
+            terms.set(index, Constant.construct("_"));
+        }
+
+        return new Literal(this.predicate, this.negated, terms);
+    }
 }

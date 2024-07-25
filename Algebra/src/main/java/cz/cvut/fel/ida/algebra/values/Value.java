@@ -69,6 +69,35 @@ public abstract class Value implements Iterable<Double>, Comparable<Value>, Seri
      */
     public abstract int[] size();
 
+    /** Get a slice of the value
+     *
+     * @param rows
+     * @param cols
+     * @return
+     */
+    public abstract Value slice(int[] rows, int[] cols);
+
+    /** Reshapes the value
+     *
+     * @param shape
+     * @return
+     */
+    public abstract Value reshape(int[] shape);
+
+    /**
+     * Get the value representation as double array
+     *
+     * @return
+     */
+    public abstract double[] getAsArray();
+
+    /**
+     * Set the value representation from double array
+     *
+     * @param value
+     */
+    public abstract void setAsArray(double[] value);
+
     /**
      * Element-wise application of a given real function
      *
@@ -302,6 +331,8 @@ public abstract class Value implements Iterable<Double>, Comparable<Value>, Seri
     protected abstract boolean greaterThan(MatrixValue maxValue);
 
     protected abstract boolean greaterThan(TensorValue maxValue);
+
+    public abstract int hashCode();
 
     public abstract boolean equals(Value obj);
 

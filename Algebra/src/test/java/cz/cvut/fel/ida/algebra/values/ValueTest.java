@@ -110,7 +110,7 @@ class ValueTest {
         VectorValue big = new VectorValue(Arrays.asList(1.0, 2.0, 3.0));
 
         int compareTo = big.compareTo(small);
-        assertEquals(0, compareTo);
+        assertEquals(1, compareTo);
     }
 
     @TestAnnotations.Fast
@@ -305,5 +305,16 @@ class ValueTest {
         Value d = a.transposedView().times(b);
 
         assertTrue(c.equals(d));
+    }
+
+    @TestAnnotations.Fast
+    public void compare(){
+        Value a = new VectorValue(Arrays.asList(1.0,2.0,6.0));
+        Value b = new VectorValue(Arrays.asList(2.0,2.0,3.0));
+        Value c = new VectorValue(Arrays.asList(2.0,2.0,6.0));
+
+        assertEquals(1,a.compareTo(b));
+        assertEquals(-1,b.compareTo(c));
+        assertEquals(-1,a.compareTo(c));
     }
 }

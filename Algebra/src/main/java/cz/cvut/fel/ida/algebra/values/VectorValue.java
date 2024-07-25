@@ -134,6 +134,100 @@ public class VectorValue extends Value {
     }
 
     @Override
+    public Value slice(int[] rows, int[] cols) {
+        int[] sliceCoords;
+
+        if (rowOrientation) {
+            if (rows != null && rows[0] != 0 && rows[1] != 1) {
+                String err = "Cannot slice VectorValue with size " + Arrays.toString(this.size()) + " with row slice " + Arrays.toString(rows);
+                LOG.severe(err);
+                throw new ArithmeticException(err);
+            }
+
+            sliceCoords = cols;
+        } else {
+            if (cols != null && cols[0] != 0 && cols[1] != 1) {
+                String err = "Cannot slice VectorValue with size " + Arrays.toString(this.size()) + " with col slice " + Arrays.toString(cols);
+                LOG.severe(err);
+                throw new ArithmeticException(err);
+            }
+
+            sliceCoords = rows;
+        }
+
+        if (sliceCoords == null) {
+            return new VectorValue(values, rowOrientation);
+        }
+
+        final int from = sliceCoords[0];
+        final int to = sliceCoords[1];
+
+        if (from < 0 || to > values.length || from >= to) {
+            String err = "Cannot slice VectorValue with size " + Arrays.toString(this.size()) + " with slice " + Arrays.toString(sliceCoords);
+            LOG.severe(err);
+            throw new ArithmeticException(err);
+        }
+
+        final double[] resValues = new double[to - from];
+        System.arraycopy(values, from, resValues, 0, resValues.length);
+
+        return new VectorValue(resValues, rowOrientation);
+    }
+
+    @Override
+    public Value reshape(int[] shape) {
+        final double[] data = values;
+
+        if (values.length == 1 && shape.length == 1 && shape[0] == 0) {
+            return new ScalarValue(values[0]);
+        }
+
+        if (shape.length == 1 && shape[0] == data.length) {
+            return new VectorValue(data);
+        }
+
+        if (shape.length == 2) {
+            if (shape[0] == 1 && shape[1] == data.length) {
+                return new MatrixValue(data, 1, data.length);
+            }
+
+            if (shape[0] == data.length && shape[1] == 1) {
+                return new MatrixValue(data, data.length, 1);
+            }
+
+            if (shape[0] == 0 && shape[1] == 0 && data.length == 1) {
+                return new ScalarValue(data[0]);
+            }
+
+            if (shape[0] == 0 && shape[1] == data.length) {
+                return new VectorValue(data);
+            }
+
+            if (shape[0] == data.length && shape[1] == 0) {
+                return new VectorValue(data, true);
+            }
+
+            if (data.length / shape[1] == shape[0]) {
+                return new MatrixValue(data, shape[0], shape[1]);
+            }
+        }
+
+        String err = "Cannot reshape VectorValue of shape " + Arrays.toString(this.size()) + " to shape " + Arrays.toString(shape);
+        LOG.severe(err);
+        throw new ArithmeticException(err);
+    }
+
+    @Override
+    public double[] getAsArray() {
+        return values;
+    }
+
+    @Override
+    public void setAsArray(double[] value) {
+        this.values = value;
+    }
+
+    @Override
     public Value apply(DoubleUnaryOperator function) {
         VectorValue result = new VectorValue(values.length, rowOrientation);
         double[] resultValues = result.values;
@@ -167,6 +261,9 @@ public class VectorValue extends Value {
 
     @Override
     public String toString(NumberFormat numberFormat) {
+        if (numberFormat == null) {
+            return "dim:" + Arrays.toString(size());
+        }
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < values.length; i++) {
             sb.append(",").append(numberFormat.format(values[i]));
@@ -196,7 +293,7 @@ public class VectorValue extends Value {
         for (int i = 0; i < resultValues.length; i++) {
             resultValues[i] *= otherValue;
         }
-        
+
         return result;
     }
 
@@ -483,7 +580,7 @@ public class VectorValue extends Value {
                     for (int k = 0; k < values.length; k++) {
                         final int tmpIndex = c1 * values.length + k;
 
-                        resultValues[r1 *  cols + tmpIndex] = otherValues[r1 * matrix.cols + c1] * values[k];
+                        resultValues[r1 * cols + tmpIndex] = otherValues[r1 * matrix.cols + c1] * values[k];
                     }
                 }
             }
@@ -684,7 +781,11 @@ public class VectorValue extends Value {
      */
     @Override
     protected void incrementBy(ScalarValue value) {
-        throw new ArithmeticException("Incompatible dimensions of algebraic operation - scalar increment by vector");
+        if (values.length == 1) {
+            value.value += values[0];
+        } else {
+            throw new ArithmeticException("Incompatible dimensions of algebraic operation - scalar increment by vector");
+        }
     }
 
     /**
@@ -774,13 +875,11 @@ public class VectorValue extends Value {
 
     @Override
     protected boolean greaterThan(ScalarValue maxValue) {
-        int greater = 0;
+        double sum = 0;
         for (int i = 0; i < values.length; i++) {
-            if (maxValue.value > values[i]) {
-                greater++;
-            }
+            sum += values[i];
         }
-        return greater > values.length / 2;
+        return maxValue.value > sum;
     }
 
     @Override
@@ -790,13 +889,13 @@ public class VectorValue extends Value {
             LOG.severe(err);
             throw new ArithmeticException(err);
         }
-        int greater = 0;
+        double thisSum = 0;
+        double otherSum = 0;
         for (int i = 0; i < values.length; i++) {
-            if (maxValue.values[i] > values[i]) {
-                greater++;
-            }
+            thisSum += values[i];
+            otherSum += maxValue.values[i];
         }
-        return greater > values.length / 2;
+        return otherSum > thisSum;
     }
 
     @Override
@@ -813,9 +912,11 @@ public class VectorValue extends Value {
     @Override
     public boolean equals(Value obj) {
         if (obj instanceof VectorValue) {
-            if (Arrays.equals(values, ((VectorValue) obj).values)) {
-                return true;
+            if (rowOrientation != ((VectorValue) obj).rowOrientation) {
+                return false;
             }
+
+            return Arrays.equals(values, ((VectorValue) obj).values);
         }
         return false;
     }
